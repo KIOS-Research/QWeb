@@ -216,6 +216,9 @@ class Qweb:
     def load_url(self):
 
         url = self.dockwidget.lineEdit.text()
+        self.url_corr(url)
+
+    def url_corr(self, url):
         if "www." not in url and ".com" not in url:
             url = "https://www.google.com/search?q=" + url
         if "https://" not in url:
@@ -223,6 +226,10 @@ class Qweb:
         if ".com" not in url:
             url = url + ".com"
         self.dockwidget.webView.load(QUrl(url))
+
+    def open_url(self, url):
+        self.run()
+        self.url_corr(url)
 
     def run(self):
         """Run method that loads and starts the plugin"""
