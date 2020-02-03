@@ -34,7 +34,7 @@ homepage=https://mariosmsk.com/2019/02/16/qweb-qgis/
 category=Web
 icon=icon.png
 # experimental flag
-experimental=True
+experimental=False
 
 # deprecated flag (applies to the whole plugin, not just a single version)
 deprecated=False
