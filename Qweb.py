@@ -21,7 +21,8 @@
  *                                                                         *
  ***************************************************************************/
 """
-from PyQt5.QtCore import QSettings, QTranslator, qVersion, QCoreApplication, Qt, QUrl
+from PyQt5 import QtGui, QtWidgets, uic
+from PyQt5.QtCore import pyqtSignal, QSettings, QTranslator, qVersion, QCoreApplication, Qt, QUrl
 from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtWidgets import QAction, QShortcut
 # Initialize Qt resources from file resources.py
@@ -31,8 +32,29 @@ from PyQt5.QtNetwork import QNetworkProxyFactory
 from PyQt5.QtWebKit import QWebSettings
 
 # Import the code for the DockWidget
-from .Qweb_dockwidget import QwebDockWidget
 import os.path
+
+FORM_CLASS, _ = uic.loadUiType(os.path.join(
+    os.path.dirname(__file__), 'Qweb_dockwidget_base.ui'))
+
+
+class QwebDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
+
+    closingPlugin = pyqtSignal()
+
+    def __init__(self, parent=None):
+        """Constructor."""
+        super(QwebDockWidget, self).__init__(parent)
+        # Set up the user interface from Designer.
+        # After setupUI you can access any designer object by doing
+        # self.<objectname>, and you can use autoconnect slots - see
+        # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
+        # #widgets-and-dialogs-with-auto-connect
+        self.setupUi(self)
+
+    def closeEvent(self, event):
+        self.closingPlugin.emit()
+        event.accept()
 
 
 class Qweb:
@@ -179,7 +201,64 @@ class Qweb:
             callback=self.run,
             parent=self.iface.mainWindow())
 
+        self.dockwidget = QwebDockWidget()
+
+        self.dockwidget.back.setText('')
+        self.dockwidget.back.setIcon(QIcon(':/plugins/Qweb/icons/back.png'))
+        self.dockwidget.back.clicked.connect(self.on_backButton_clicked)
+
+        self.dockwidget.forward.setText('')
+        self.dockwidget.forward.clicked.connect(self.on_forwardButton_clicked)
+        self.dockwidget.forward.setIcon(QIcon(':/plugins/Qweb/icons/forward.png'))
+
+        self.dockwidget.refresh.setText('')
+        self.dockwidget.refresh.clicked.connect(self.on_refreshButton_clicked)
+        self.dockwidget.refresh.setIcon(QIcon(':/plugins/Qweb/icons/refresh.png'))
+
+        self.dockwidget.home.setText('')
+        self.dockwidget.home.clicked.connect(self.on_homeButton_clicked)
+        self.dockwidget.home.setIcon(QIcon(':/plugins/Qweb/icons/home.png'))
+
+        self.dockwidget.home.setText('')
+        self.dockwidget.home.clicked.connect(self.on_homeButton_clicked)
+        self.dockwidget.home.setIcon(QIcon(':/plugins/Qweb/icons/home.png'))
+
+        self.dockwidget.zoom_in.setText('')
+        self.dockwidget.zoom_in.clicked.connect(self.on_actionZoomIn_triggered)
+        self.dockwidget.zoom_in.setIcon(QIcon(':/plugins/Qweb/icons/mActionZoomIn.svg'))
+
+        self.dockwidget.zoom_out.setText('')
+        self.dockwidget.zoom_out.clicked.connect(self.on_actionZoomOut_triggered)
+        self.dockwidget.zoom_out.setIcon(QIcon(':/plugins/Qweb/icons/mActionZoomOut.svg'))
+
+        self.dockwidget.webView.loadFinished.connect(self.on_load_finished)
+
+
     #--------------------------------------------------------------------------
+    def on_load_finished(self):
+        self.dockwidget.lineEdit.setText(self.dockwidget.webView.url().toString())
+
+    def on_actionZoomIn_triggered(self):
+        current = self.dockwidget.webView.zoomFactor()
+        self.dockwidget.webView.setZoomFactor(current + 0.1)
+
+    def on_actionZoomOut_triggered(self):
+        current = self.dockwidget.webView.zoomFactor()
+        self.dockwidget.webView.setZoomFactor(current - 0.1)
+
+    def on_homeButton_clicked(self):
+        url = "https://www.google.com"
+        self.dockwidget.webView.load(QUrl(url))
+        self.dockwidget.lineEdit.setText(url)
+
+    def on_refreshButton_clicked(self):
+        self.dockwidget.webView.reload()
+
+    def on_backButton_clicked(self):
+        self.dockwidget.webView.back()
+
+    def on_forwardButton_clicked(self):
+        self.dockwidget.webView.forward()
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
@@ -197,6 +276,9 @@ class Qweb:
 
         self.pluginIsActive = False
 
+    def open_url(self, url):
+        self.run()
+        self.url_corr(url)
 
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
@@ -216,49 +298,36 @@ class Qweb:
     def load_url(self):
 
         url = self.dockwidget.lineEdit.text()
-        if "www." not in url and ".com" not in url:
-            url = "https://www.google.com/search?q=" + url
-        if "https://" not in url:
-            url = "https://" + url
-        if ".com" not in url:
-            url = url + ".com"
+        self.url_corr(url)
+
+    def url_corr(self, url):
+
+        if 'file://' in url or "https://" in url:
+            url = url
+
+        else:
+
+            if "www." not in url and ".com" not in url:
+                url = "https://www.google.com/search?q=" + url
+
+            if "https://" not in url:
+                url = "https://" + url
+
         self.dockwidget.webView.load(QUrl(url))
+        self.dockwidget.lineEdit.setText(url)
 
     def run(self):
         """Run method that loads and starts the plugin"""
 
         if not self.pluginIsActive:
             self.pluginIsActive = True
-
-            #print "** STARTING Qweb"
-
-            # dockwidget may not exist if:
-            #    first run of plugin
-            #    removed on close (see self.onClosePlugin method)
             if self.dockwidget == None:
-                # Create the dockwidget (after translation) and keep reference
-                self.dockwidget = QwebDockWidget()
+                return
 
             self.dockwidget.lineEdit.returnPressed.connect(self.load_url)
             QNetworkProxyFactory.setUseSystemConfiguration(True)
             QWebSettings.globalSettings().setAttribute(QWebSettings.PluginsEnabled, True)
-            self.dockwidget.webView.settings().setAttribute(QWebSettings.PluginsEnabled,True)
-
-            #from PyQt5 import QtWebEngineWidgets
-            #from PyQt5.QtWebEngineWidgets import QWebEngineSettings
-
-            #self.webview = QtWebEngineWidgets.QWebEngineView()
-            #self.zoomIn = QShortcut(QKeySequence(Qt.Key_Alt), self.dockwidget.webView,
-            #                              activated=lambda: self.dockwidget.webView.setZoomFactor(self.dockwidget.webView.zoomFactor() + .2))
-
-
-            #self.zoomOut = QShortcut("Ctrl+-", self,
-            #                               activated=lambda: self.dockwidget.webView.setZoomFactor(self.dockwidget.webView.zoomFactor() - .2))
-            #self.zoomOne = QShortcut("Ctrl+=", self, activated=lambda: self.dockwidget.webView.setZoomFactor(1))
-
-           # self.webview.setSupportZoom(True)
-           # self.webview.setBuiltInZoomControls(True)
-           # self.webview.setDisplayZoomControls(True)
+            self.dockwidget.webView.settings().setAttribute(QWebSettings.PluginsEnabled, True)
 
             # connect to provide cleanup on closing of dockwidget
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
