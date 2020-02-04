@@ -10,7 +10,7 @@
 name=QWeb
 qgisMinimumVersion=3.0
 description=This plugin enables users to open a window within the QGIS environment where the user can browse through the web.
-version=0.2
+version=0.2.1
 author=Marios S. Kyriakou, George A. Christou, KIOS Research and Innovation Center of Excellence (KIOS CoE)
 email=mariosmsk@gmail.com, george.a.christou@gmail.com
 
@@ -23,7 +23,12 @@ repository=https://github.com/KIOS-Research/QWeb
 # Recommended items:
 
 # Uncomment the following line and add your changelog:
-# changelog=2020-02-03  QWeb 0.2:
+# changelog=2020-02-03  QWeb 0.2.1:
+			Change home page to qgis.org
+			Open more tabs
+			Some fixes
+			
+			2020-02-03  QWeb 0.2:
 			Add buttons back, forward, refresh, zoom in, zoom out and home.
 			Youtube videos working.
 
