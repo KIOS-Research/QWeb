@@ -24,12 +24,13 @@
 from PyQt5 import QtGui, QtWidgets, uic
 from PyQt5.QtCore import pyqtSignal, QSettings, QTranslator, qVersion, QCoreApplication, Qt, QUrl
 from PyQt5.QtGui import QIcon, QKeySequence
-from PyQt5.QtWidgets import QAction, QShortcut
+from PyQt5.QtWidgets import QAction, QShortcut, QMessageBox, QWidget, QHBoxLayout, QVBoxLayout
 # Initialize Qt resources from file resources.py
 from .resources import *
 from PyQt5.QtNetwork import QNetworkProxyFactory
 
 from PyQt5.QtWebKit import QWebSettings
+from PyQt5.QtWebKitWidgets import QWebView, QWebPage
 
 # Import the code for the DockWidget
 import os.path
@@ -232,33 +233,100 @@ class Qweb:
         self.dockwidget.zoom_out.setIcon(QIcon(':/plugins/Qweb/icons/mActionZoomOut.svg'))
 
         self.dockwidget.webView.loadFinished.connect(self.on_load_finished)
+        self.dockwidget.webView.page().setLinkDelegationPolicy(QWebPage.DelegateAllLinks)
 
+        self.dockwidget.lineEdit.returnPressed.connect(self.load_url)
+
+        self.dockwidget.new_tab.clicked.connect(self.newTab)
+
+        # Tab browser
+        self.tabWebView = []
+        self.urlsTabLine = []
+
+        self.tabs = self.dockwidget.tabWidget
+        self.tabWebView.append(self.dockwidget.webView)
+        self.urlsTabLine.append(self.dockwidget.lineEdit)
+
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self.closeTab)
+        self.dockwidget.tabWidget.setCurrentWidget(self.dockwidget.webView)
+
+        self.dockwidget.tabWidget.currentChanged.connect(self.tabSelected)
+        self.dockwidget.tabWidget.setCurrentWidget(self.dockwidget.webView)
 
     #--------------------------------------------------------------------------
+    def newTab(self):
+        newWebView = QWebView()
+        newWebView.loadFinished.connect(self.on_load_finished)
+
+        #newTabWidget = QWidget()
+        self.tabs.addTab(newWebView, "New Tab")
+        self.tabWebView.append(newWebView)
+        self.urlsTabLine.append(self.dockwidget.lineEdit)
+        self.dockwidget.lineEdit.setText("")
+        self.dockwidget.lineEdit.setFocus()
+        tab = self.tabs.currentIndex()
+        self.tabs.setCurrentIndex(tab + 1)
+        self.dockwidget.tabWidget.setCurrentWidget(newWebView)
+
+    def closeTab(self, tab):
+        if len(self.tabWebView) > 1:
+            del self.urlsTabLine[tab]
+            del self.tabWebView[tab]
+            self.tabs.removeTab(tab)
+
+    def tabSelected(self):
+        tab = self.dockwidget.tabWidget.currentIndex()
+        self.dockwidget.lineEdit.setText(self.tabWebView[tab].url().toString())
+        pass
+
+    def on_pageInNewTab(self):
+        tab = self.dockwidget.tabWidget.currentIndex()
+
+        print(self.tabWebView[tab].url().toString())
     def on_load_finished(self):
-        self.dockwidget.lineEdit.setText(self.dockwidget.webView.url().toString())
+
+        tab = self.tabs.currentIndex()
+        self.dockwidget.lineEdit.setText(self.tabWebView[tab].url().toString())
+
+        self.urlsTabLine[tab].setText(self.dockwidget.lineEdit.text())
+        pagetitle = self.tabWebView[tab].title()
+        self.tabs.setTabText(tab, pagetitle)
 
     def on_actionZoomIn_triggered(self):
-        current = self.dockwidget.webView.zoomFactor()
-        self.dockwidget.webView.setZoomFactor(current + 0.1)
+        #current = self.dockwidget.webView.zoomFactor()
+        #self.dockwidget.webView.setZoomFactor(current + 0.1)
+        tab = self.tabs.currentIndex()
+        current = self.tabWebView[tab].zoomFactor()
+        self.tabWebView[tab].setZoomFactor(current + 0.1)
 
     def on_actionZoomOut_triggered(self):
-        current = self.dockwidget.webView.zoomFactor()
-        self.dockwidget.webView.setZoomFactor(current - 0.1)
+        #current = self.dockwidget.webView.zoomFactor()
+        #self.dockwidget.webView.setZoomFactor(current - 0.1)
+        tab = self.tabs.currentIndex()
+        current = self.tabWebView[tab].zoomFactor()
+        self.tabWebView[tab].setZoomFactor(current - 0.1)
 
     def on_homeButton_clicked(self):
-        url = "https://www.google.com"
-        self.dockwidget.webView.load(QUrl(url))
-        self.dockwidget.lineEdit.setText(url)
+        url = "https://qgis.org"
+        tab = self.tabs.currentIndex()
+        self.tabWebView[tab].load(QUrl(url))
+        self.urlsTabLine[tab].setText(url)
 
     def on_refreshButton_clicked(self):
-        self.dockwidget.webView.reload()
+        #self.dockwidget.webView.reload()
+        tab = self.tabs.currentIndex()
+        self.tabWebView[tab].reload()
 
     def on_backButton_clicked(self):
-        self.dockwidget.webView.back()
+        #self.dockwidget.webView.back()
+        tab = self.tabs.currentIndex()
+        self.tabWebView[tab].back()
 
     def on_forwardButton_clicked(self):
-        self.dockwidget.webView.forward()
+        #self.dockwidget.webView.forward()
+        tab = self.tabs.currentIndex()
+        self.tabWebView[tab].forward()
 
     def onClosePlugin(self):
         """Cleanup necessary items here when plugin dockwidget is closed"""
@@ -296,25 +364,41 @@ class Qweb:
     #--------------------------------------------------------------------------
 
     def load_url(self):
-
+        tab = self.tabs.currentIndex()
         url = self.dockwidget.lineEdit.text()
-        self.url_corr(url)
+        self.urlsTabLine[tab].setText(url)
+        self.url_corr(url, tab)
 
-    def url_corr(self, url):
+    def url_corr(self, url, tab):
 
-        if 'file://' in url or "https://" in url:
+        if 'C:\\' in url and 'file:///' not in url:
+            url = url.replace('\\', '/')
+            url = 'file:///' + url
+
+        if 'file:///' in url or "https://" in url:
             url = url
-
         else:
-
-            if "www." not in url and ".com" not in url:
-                url = "https://www.google.com/search?q=" + url
 
             if "https://" not in url:
                 url = "https://" + url
+            if ".org" in url:
+                url = url
+            else:
+                if "www." not in url and ".com" not in url:
+                    url = url[8:]
+                    url = "https://www.google.com/search?q=" + url
 
-        self.dockwidget.webView.load(QUrl(url))
-        self.dockwidget.lineEdit.setText(url)
+        if QUrl(url).isValid():
+            self.tabWebView[tab].load(QUrl(url))
+            self.urlsTabLine[tab].setText(url)
+        else:
+            msg = QMessageBox()
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle('QWeb')
+            msg.setText("Url not valid")
+            msg.setStandardButtons(QMessageBox.Ok)
+            msg.exec_()
+            return
 
     def run(self):
         """Run method that loads and starts the plugin"""
@@ -324,7 +408,6 @@ class Qweb:
             if self.dockwidget == None:
                 return
 
-            self.dockwidget.lineEdit.returnPressed.connect(self.load_url)
             QNetworkProxyFactory.setUseSystemConfiguration(True)
             QWebSettings.globalSettings().setAttribute(QWebSettings.PluginsEnabled, True)
             self.dockwidget.webView.settings().setAttribute(QWebSettings.PluginsEnabled, True)
@@ -336,3 +419,6 @@ class Qweb:
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
+
+            url = self.dockwidget.lineEdit.text()
+            self.url_corr(url, 0)
